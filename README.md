@@ -2,7 +2,7 @@
 
 > Portfolio reference implementation: SQL Server + SSIS legacy reporting → ADF incremental extraction → ADLS Gen2 → Databricks Auto Loader → Delta Lake Bronze/Silver/Gold → Unity Catalog governance.
 
-**Status:** GitHub-ready reference project. The synthetic-data generator and baseline tests run locally with Python 3.10+. The cloud paths require an Azure subscription, a Unity Catalog-enabled Azure Databricks workspace, an Azure Data Factory, and an accessible SQL Server source. No Azure resources have been provisioned and no Databricks jobs have been executed as part of this deliverable.
+**Status:**The synthetic-data generator and baseline tests run locally with Python 3.10+. The cloud paths require an Azure subscription, a Unity Catalog-enabled Azure Databricks workspace, an Azure Data Factory, and an accessible SQL Server source. No Azure resources have been provisioned and no Databricks jobs have been executed as part of this deliverable.
 
 ## Business problem
 
