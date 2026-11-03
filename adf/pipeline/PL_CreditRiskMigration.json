@@ -1,0 +1,230 @@
+{
+  "name": "PL_CreditRiskMigration",
+  "properties": {
+    "description": "Extract SQL Server incrementals to immutable ADLS paths, then trigger Databricks Auto Loader → Silver → Gold → validation.",
+    "parameters": {
+      "window_start": {
+        "type": "String",
+        "defaultValue": "2026-10-01T00:00:00"
+      },
+      "window_end": {
+        "type": "String",
+        "defaultValue": "2026-11-01T00:00:00"
+      },
+      "as_of_date": {
+        "type": "String",
+        "defaultValue": "2026-10-31"
+      },
+      "catalog": {
+        "type": "String",
+        "defaultValue": "creditrisk_dev"
+      }
+    },
+    "activities": [
+      {
+        "name": "Copy_Customers",
+        "type": "Copy",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.08:00:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 30
+        },
+        "typeProperties": {
+          "source": {
+            "type": "SqlSource",
+            "sqlReaderQuery": {
+              "value": "@concat('SELECT customer_id, region, risk_band, updated_at FROM dbo.Customers WHERE updated_at >= CONVERT(datetime2, ''', pipeline().parameters.window_start, ''', 126) AND updated_at < CONVERT(datetime2, ''', pipeline().parameters.window_end, ''', 126)')",
+              "type": "Expression"
+            }
+          },
+          "sink": {
+            "type": "DelimitedTextSink",
+            "storeSettings": {
+              "type": "AzureBlobFSWriteSettings"
+            },
+            "formatSettings": {
+              "type": "DelimitedTextWriteSettings"
+            }
+          },
+          "enableStaging": false
+        },
+        "inputs": [
+          {
+            "referenceName": "DS_SQLSERVER",
+            "type": "DatasetReference"
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "DS_LANDING_CSV",
+            "type": "DatasetReference",
+            "parameters": {
+              "folder": {
+                "value": "@concat('customers/', pipeline().RunId, '/')",
+                "type": "Expression"
+              },
+              "file": {
+                "value": "@concat('customers_', pipeline().RunId, '.csv')",
+                "type": "Expression"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "Copy_Loans",
+        "type": "Copy",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.08:00:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 30
+        },
+        "typeProperties": {
+          "source": {
+            "type": "SqlSource",
+            "sqlReaderQuery": {
+              "value": "@concat('SELECT loan_id, customer_id, principal_amount, outstanding_balance, due_date, updated_at FROM dbo.Loans WHERE updated_at >= CONVERT(datetime2, ''', pipeline().parameters.window_start, ''', 126) AND updated_at < CONVERT(datetime2, ''', pipeline().parameters.window_end, ''', 126)')",
+              "type": "Expression"
+            }
+          },
+          "sink": {
+            "type": "DelimitedTextSink",
+            "storeSettings": {
+              "type": "AzureBlobFSWriteSettings"
+            },
+            "formatSettings": {
+              "type": "DelimitedTextWriteSettings"
+            }
+          },
+          "enableStaging": false
+        },
+        "inputs": [
+          {
+            "referenceName": "DS_SQLSERVER",
+            "type": "DatasetReference"
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "DS_LANDING_CSV",
+            "type": "DatasetReference",
+            "parameters": {
+              "folder": {
+                "value": "@concat('loans/', pipeline().RunId, '/')",
+                "type": "Expression"
+              },
+              "file": {
+                "value": "@concat('loans_', pipeline().RunId, '.csv')",
+                "type": "Expression"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "Copy_Payments",
+        "type": "Copy",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.08:00:00",
+          "retry": 2,
+          "retryIntervalInSeconds": 30
+        },
+        "typeProperties": {
+          "source": {
+            "type": "SqlSource",
+            "sqlReaderQuery": {
+              "value": "@concat('SELECT payment_id, loan_id, payment_amount, payment_date, updated_at FROM dbo.Payments WHERE updated_at >= CONVERT(datetime2, ''', pipeline().parameters.window_start, ''', 126) AND updated_at < CONVERT(datetime2, ''', pipeline().parameters.window_end, ''', 126)')",
+              "type": "Expression"
+            }
+          },
+          "sink": {
+            "type": "DelimitedTextSink",
+            "storeSettings": {
+              "type": "AzureBlobFSWriteSettings"
+            },
+            "formatSettings": {
+              "type": "DelimitedTextWriteSettings"
+            }
+          },
+          "enableStaging": false
+        },
+        "inputs": [
+          {
+            "referenceName": "DS_SQLSERVER",
+            "type": "DatasetReference"
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "DS_LANDING_CSV",
+            "type": "DatasetReference",
+            "parameters": {
+              "folder": {
+                "value": "@concat('payments/', pipeline().RunId, '/')",
+                "type": "Expression"
+              },
+              "file": {
+                "value": "@concat('payments_', pipeline().RunId, '.csv')",
+                "type": "Expression"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "Databricks_Bronze_Silver_Gold_Validate",
+        "type": "DatabricksNotebook",
+        "dependsOn": [
+          {
+            "activity": "Copy_Customers",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          },
+          {
+            "activity": "Copy_Loans",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          },
+          {
+            "activity": "Copy_Payments",
+            "dependencyConditions": [
+              "Succeeded"
+            ]
+          }
+        ],
+        "policy": {
+          "timeout": "0.08:00:00",
+          "retry": 1,
+          "retryIntervalInSeconds": 60
+        },
+        "linkedServiceName": {
+          "referenceName": "LS_DATABRICKS",
+          "type": "LinkedServiceReference"
+        },
+        "typeProperties": {
+          "notebookPath": "/Shared/creditrisk-migration/00_run_pipeline",
+          "baseParameters": {
+            "catalog": {
+              "value": "@pipeline().parameters.catalog",
+              "type": "Expression"
+            },
+            "as_of_date": {
+              "value": "@pipeline().parameters.as_of_date",
+              "type": "Expression"
+            }
+          }
+        }
+      }
+    ],
+    "annotations": [
+      "reference-implementation",
+      "ssis-modernization",
+      "credit-risk"
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "DS_SQLSERVER",
+  "properties": {
+    "linkedServiceName": {
+      "referenceName": "LS_SQLSERVER",
+      "type": "LinkedServiceReference"
+    },
+    "type": "SqlServerTable",
+    "typeProperties": {
+      "schema": "dbo",
+      "table": "Customers"
+    }
+  }
+}
